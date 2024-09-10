@@ -75,17 +75,20 @@ def is_permutable_prime(num: int):
     return is_prime(num) and is_prime(reversed_num)
 
 
-def calc_primes(n: int):
+def calc_primes(n: int, show_progress: bool = True):
+    progress_step = n // 10
+    print('Start calculating...')
     start = default_timer()
     my_primes = []
-    for i in range(1, n):
+    for i in range(1, n + 1):
         is_p = is_prime(i)
-        # print(f'{i} is prime:', is_p)
         if is_p:
             my_primes.append(i)
+        if show_progress and (i % progress_step == 0 or i == n):
+            print(f'Progress: {i / n * 100:.0f}%, {len(my_primes):_} primes found so far..')
 
     end = default_timer()
-    print(f'Primes up to {n} are calculated in: {end-start} sec(s)')
+    print(f'Primes up to {n:_} are calculated in: {end-start:4f} sec(s)')
     return my_primes
 
 
@@ -98,21 +101,24 @@ def test_prime_calc(prime_list: List[int], n):
 
 
 if __name__ == "__main__":
-    up_to = 10_000
+    up_to = 100_000_000
     my_primes = calc_primes(up_to)
-    print(f'my first primes: {my_primes[:100]}')
+    # print(f'My first 100 primes: {my_primes[:100]}')
+    # print(f'My last 10 primes up to {up_to:_}: {my_primes[-10:]}')
 
-    print(test_prime_calc(my_primes, up_to))
+    # Uncomment the next line to check the prime numbers up to 100_000.
+    # print(test_prime_calc(my_primes, up_to))
 
     # Special Primes
-    my_twins = twin_primes(my_primes)
-    my_cousins = cousin_primes(my_primes)
-    my_sexy_primes = sexy_primes(my_primes)
-    my_perm_primes = [[n, int(str(n)[::-1])] for n in filter(is_permutable_prime, my_primes)]
-    my_prime_triplets = prime_triplets(my_primes)
-
-    print(f'my_twins: {my_twins[:100]}')
-    print(f'my_cousins: {my_cousins[:100]}')
-    print(f'my_sexy_primes: {my_sexy_primes[:100]}')
-    print(f'my_perm_primes: {my_perm_primes[:100]}')
-    print(f'my_prime_triplets: {my_prime_triplets[:100]}')
+    # print("Checking special primes...")
+    # my_twins = twin_primes(my_primes)
+    # my_cousins = cousin_primes(my_primes)
+    # my_sexy_primes = sexy_primes(my_primes)
+    # my_perm_primes = [[n, int(str(n)[::-1])] for n in filter(is_permutable_prime, my_primes)]
+    # my_prime_triplets = prime_triplets(my_primes)
+    #
+    # print(f'My first twin primes{my_twins[:100]}')
+    # print(f'My first cousin primes: {my_cousins[:100]}')
+    # print(f'My first sexy primes: {my_sexy_primes[:100]}')
+    # print(f'My first permutable primes: {my_perm_primes[:100]}')
+    # print(f'My first prime triplets: {my_prime_triplets[:100]}')

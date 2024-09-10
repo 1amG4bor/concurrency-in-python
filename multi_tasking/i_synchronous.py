@@ -6,8 +6,8 @@ from multi_tasking.model import TaskRunner
 
 
 class SyncTaskRunner(TaskRunner):
-    def __init__(self, task: Callable, max_workers: int):
-        super().__init__(task, max_workers)
+    def __init__(self, task: Callable, max_workers: int, delay: int = None):
+        super().__init__(task, max_workers, forced_delay=delay)
 
     def execute(self, task_queue: Queue):
         print('Processing...')
@@ -24,9 +24,9 @@ if __name__ == '__main__':
         for n in range(1, limit + 1):
             task_queue.put(n)
 
-        task_runner = SyncTaskRunner(prim_task, 2)
+        task_runner = SyncTaskRunner(task=prim_task, max_workers=2)
         result = task_runner.execute(task_queue)
         print(result)
 
-    up_to = 100
+    up_to = 1000
     synchron_calculate(up_to)

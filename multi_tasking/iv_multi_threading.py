@@ -8,22 +8,8 @@ from time import sleep
 from typing import Callable, List
 
 from multi_tasking.helper.prime_helper import prim_task, time_it
-from multi_tasking.model import TaskRunner
+from multi_tasking.model import TaskRunner, Worker
 from multi_tasking.model.const import TASK_PREPARATION_TIME
-
-
-# https://realpython.com/intro-to-python-threading/
-# .Thread(name, target, args, kwargs, daemon) - create a thread (start, join)
-# Multi-thread
-#   - manual: one or more Thread()
-#   - ThreadPoolExecutor: .submit | .map
-#   - ProcessPoolExecutor => "uses the multiprocessing module"
-# Race conditions:  - .Lock (.acquire()/.release()) /mutex/
-#                   - (Bounded)Semaphore (counter to limit threads to access resources)
-# Timer(sec: float) - schedule a function to be called after a certain amount of time
-# Barrier(n) - keep a fixed number of threads in sync. (allow a pool of threads to initialize themselves)
-#       Each thread calls .wait() on the Barrier. They all will remain blocked
-#       until the specified number of threads are waiting, and then they are all released at the same time.
 
 
 class MultiThreadRunnerType(Enum):
@@ -32,11 +18,40 @@ class MultiThreadRunnerType(Enum):
     THREAD_POOL = "ThreadPoolExecutor"
 
 
+class MultiThreadWorker(Worker):
+    def __init__(self, name: str, task: Callable, delay: int = TASK_PREPARATION_TIME):
+        super().__init__(name, task, delay)
+
+    def processing_with_lock(self, task_provider, result):
+        name = threading.current_thread().name
+        print(f'{name}: start working.. (PID:{os.getpid()})')
+        while True:
+            sleep(self._forced_delay)  # Forced delay to indicate preparation for the job
+            item = task_provider()
+            if not item:
+                break
+            output = self._task(item)
+            if output:
+                result.add(output)
+        return name, result
+
+    def pool_processing(self, task_list):
+        name = threading.current_thread().name
+        print(f'{name}: start working.. (PID:{os.getpid()})')
+        result = set({})
+        for item in task_list:
+            sleep(self._forced_delay)  # Forced delay to indicate preparation for the job
+            out = self._task(item)
+            if out:
+                result.add(out)
+        return name, result
+
+
 class MultiThreadTaskRunner(TaskRunner):
-    def __init__(self, task: Callable, max_workers: int, runner: MultiThreadRunnerType):
-        super().__init__(task, max_workers)
+    def __init__(self, task: Callable, max_workers: int, runner: MultiThreadRunnerType, forced_delay: int = None):
+        super().__init__(task, max_workers, MultiThreadWorker, forced_delay)
         self._task = task
-        self.__max_workers = max_workers
+        self.__max_workers: int = max_workers
         self.__runner_type: MultiThreadRunnerType = runner
 
     def execute(self, task_queue: Queue):
@@ -66,19 +81,20 @@ class MultiThreadTaskRunner(TaskRunner):
             thread.join()
 
     def run_with_list_and_lock(self, task_queue):
+        """Execute the task that is provided by a task-provider with lock mechanism."""
         task_list = self._get_chunks(task_queue, 1)[0]
         lock = threading.Lock()
         task_provider = self._task_provider(task_list, lock)
 
-        workers_size = self.__max_workers
         working_threads = list()
-        for worker_name in [f'Worker-{n}' for n in range(1, workers_size + 1)]:
+        worker: MultiThreadWorker
+        for worker in self._workers:
             thread = threading.Thread(
-                name=worker_name,
-                target=self.__processing_with_lock,
-                args=(task_provider, self._result[worker_name]))
-            working_threads.append(thread)
+                name=worker.name,
+                target=worker.processing_with_lock,
+                args=(task_provider, self._result[worker.name]))
             thread.start()
+            working_threads.append(thread)
 
         for thread in working_threads:
             thread.join()
@@ -89,11 +105,13 @@ class MultiThreadTaskRunner(TaskRunner):
         pool_size = self.__max_workers
         chunks = self._get_chunks(task_queue, pool_size)
 
+        worker: MultiThreadWorker = self.worker[0]
         with ThreadPoolExecutor(max_workers=pool_size, thread_name_prefix='Worker') as executor:
             # Schedules a fn(*args, **kwargs) and returns a Future object representing the execution of the callable.
             # future = executor.submit(func)
             # future.result()
-            result = executor.map(self.__pool_processing, chunks)
+
+            result = executor.map(worker.pool_processing, chunks)
             for name, primes in result:
                 self._result[name] = primes
 
@@ -119,35 +137,10 @@ class MultiThreadTaskRunner(TaskRunner):
                     sleep(0.01)
         return provider
 
-    def __pool_processing(self, task_queue):
-        name = threading.current_thread().name
-        print(f'{name}: start working.. (PID:{os.getpid()})')
-        result = set({})
-        for item in task_queue:
-            sleep(TASK_PREPARATION_TIME)  # Prepare for the job
-            out = self._task(item)
-            if out:
-                result.add(out)
-        return name, result
-
-    def __processing_with_lock(self, task_provider, result):
-        name = threading.current_thread().name
-        print(f'{name}: start working.. (PID:{os.getpid()})')
-        while True:
-            sleep(TASK_PREPARATION_TIME)  # Prepare for the job
-            item = task_provider()
-            if not item:
-                break
-            # print(f'{name} checking: {item}')
-            output = self._task(item)
-            if output:
-                result.add(output)
-        return name, result
-
 
 if __name__ == '__main__':
     @time_it
-    def multithread_calculate(limit: int, runner: MultiThreadRunnerType, workers: int = 3):
+    def multithread_calculate(limit: int, runner: MultiThreadRunnerType, workers: int = 2):
         task_queue = Queue()
         for n in range(1, limit + 1):
             task_queue.put(n)
@@ -157,7 +150,7 @@ if __name__ == '__main__':
         print(result)
 
 
-    up_to = 100
+    up_to = 1000
     print("GENERATED DELAY:", up_to * 0.01, 'sec')
     multithread_calculate(up_to, MultiThreadRunnerType.SIMPLE)
     multithread_calculate(up_to, MultiThreadRunnerType.LOCKED_LIST)

@@ -9,23 +9,22 @@ from multi_tasking.model.const import TASK_PREPARATION_TIME
 
 
 class CoopWorker(Worker):
-    def __init__(self, name: str, task: Callable):
-        super().__init__(name, task)
+    def __init__(self, name: str, task: Callable, delay: int = TASK_PREPARATION_TIME):
+        super().__init__(name, task, delay)
         print(self.name, 'Worker created..', f'(PID:{os.getpid()})')
 
     def process(self, task_input, result: Set):
         self._status = Status.BUSY
         sleep(TASK_PREPARATION_TIME)  # Prepare for the job
         out = self._task(task_input)
-        result = set({})
         if out:
             result.add(out)
         self._status = Status.IDLE
 
 
 class CoopTaskRunner(TaskRunner):
-    def __init__(self, task: Callable, max_workers: int):
-        super().__init__(task, max_workers, CoopWorker)
+    def __init__(self, task: Callable, max_workers: int, forced_delay: int = None):
+        super().__init__(task, max_workers, CoopWorker, forced_delay)
 
     def execute(self, task_queue: Queue):
         print('Processing...')
@@ -54,5 +53,5 @@ if __name__ == '__main__':
         result = task_runner.execute(task_queue)
         print(result)
 
-    up_to = 100
+    up_to = 1000
     cooperated_calculate(up_to)
